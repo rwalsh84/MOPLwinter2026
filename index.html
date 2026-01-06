@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Bird Survey Map</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+
+  <style>
+    body { margin: 0; }
+    #map { height: 100vh; width: 100vw; }
+  </style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<!-- PapaParse for CSV parsing -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // -------------------------------
+  // CONFIG
+  // -------------------------------
+
+  const sheetCSVUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAuCYuA2qVCdRemU8gz0XJZNqlvISHcUEARIVddpKJZHlFhnQ_8G6aBfiLNgWJlIOGq7C075smSDDz/pub?output=csv";
+  const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSd6e2s8ZoljDQy_Bt31CcI0LjbXRu5j0MhgV1BuqR8CHTP9Vw/formResponse";
+
+  const entryIDs = {
+    cell_id: "entry.2123537933",
+    PixelName: "entry.1700637740",
+    Status: "entry.704542047",
+    ClaimerName: "entry.617726333",
+    ClaimerEmail: "entry.228419495"
+  };
+
+  // -------------------------------
+  // INITIALIZE MAP
+  // -------------------------------
+
+  const map = L.map('map');
+
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 18, attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics' }
+  ).addTo(map);
+
+  let gridLayer;
+
+  // Load GeoJSON
+  fetch("survey_grid.geojson")
+    .then(res => res.json())
+    .then(data => {
+      gridLayer = L.geoJSON(data, {
+        style: f => ({
+          fillColor: f.properties.fillColor,
+          color: f.properties.strokeColor,
+          weight: 1,
+          fillOpacity: 0.6
+        }),
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties;
+          const btnId = `claim-${p.cell_id}`;
+
+          layer.bindPopup(generatePopupContent(p, btnId));
+
+          // Attach claim handler
+          layer.on("popupopen", () => {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.onclick = () => claimSquare(layer, p.cell_id, p.PixelName);
+          });
+        }
+      }).addTo(map);
+
+      map.fitBounds(gridLayer.getBounds());
+
+      // -------------------------------
+      // LOAD EXISTING CLAIMS FROM SHEET
+      // -------------------------------
+      fetch(sheetCSVUrl)
+        .then(r => r.text())
+        .then(csvText => {
+          const rows = Papa.parse(csvText, { header: true }).data;
+
+          rows.forEach(r => {
+            const cellId = r.cell_id;
+            const layer = gridLayer.getLayers().find(l => l.feature.properties.cell_id == cellId);
+            if (layer && r.Status === "claimed") {
+              const p = layer.feature.properties;
+              p.Status = "claimed";
+              p.ClaimerName = r.ClaimerName;
+              p.ClaimerEmail = r.ClaimerEmail;
+
+              layer.setStyle({ fillOpacity: 0.1, opacity: 0.3 });
+              layer.setPopupContent(generatePopupContent(p, `claimed-${cellId}`));
+            }
+          });
+        });
+    });
+
+  // -------------------------------
+  // HELPERS
+  // -------------------------------
+
+  function generatePopupContent(p, btnId) {
+    const claimed = p.Status === "claimed";
+    return `
+      <b>Pixel:</b> ${p.PixelName}<br>
+      <b>Cell ID:</b> ${p.cell_id}<br>
+      <b>Nearest city:</b> ${p.NearestCity}<br>
+      <b>State:</b> ${p.State}<br>
+      <b>Distance:</b> ${p.DstMiles} miles<br>
+      <b>Relative abundance:</b> ${p.RelAbun}<br>
+      <b>Status:</b> ${p.Status}<br>
+      ${claimed ? `<b>Claimed by:</b> ${p.ClaimerName}<br>` : ""}
+      <br>
+      <button id="${btnId}" ${claimed ? "disabled" : ""}>Claim this square</button>
+    `;
+  }
+
+  function claimSquare(layer, cellId, pixelName) {
+    const name = prompt("Your name:");
+    if (!name) return;
+
+    const email = prompt("Your email:");
+    if (!email) return;
+
+    // Update polygon properties in memory
+    const p = layer.feature.properties;
+    p.Status = "claimed";
+    p.ClaimerName = name;
+    p.ClaimerEmail = email;
+
+    // Fade polygon
+    layer.setStyle({ fillOpacity: 0.1, opacity: 0.3 });
+
+    // Update popup immediately
+    layer.setPopupContent(generatePopupContent(p, `claimed-${cellId}`));
+    layer.closePopup();
+
+    // Submit to Google Form
+    const data = new FormData();
+    data.append(entryIDs.cell_id, cellId);
+    data.append(entryIDs.PixelName, pixelName);
+    data.append(entryIDs.Status, "claimed");
+    data.append(entryIDs.ClaimerName, name);
+    data.append(entryIDs.ClaimerEmail, email);
+
+    fetch(formUrl, { method: "POST", body: data })
+      .then(() => console.log(`Claim submitted: ${pixelName}`))
+      .catch(err => console.error(err));
+
+    alert(`Thanks, ${name}!\nYou claimed ${pixelName}.`);
+  }
+</script>
+</body>
+</html>
