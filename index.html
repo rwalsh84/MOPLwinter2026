@@ -24,25 +24,33 @@
 }
 
 .info-title {
-  font-size: 36px;    /* was 18px → double */
+  font-size: 22px;    /* was 18px → double */
   font-weight: bold;
   margin-bottom: 12px;
 }
 
 .info-text {
-  font-size: 28px;    /* was 14px → double */
+  font-size: 18px;    /* was 14px → double */
   margin-bottom: 18px;
 }
 
 .info-legend {
-  font-size: 28px;    /* legend text bigger */
+  font-size: 14px;    /* legend text bigger */
 }
 
-.legend-row .legend-box {
-  width: 30px;        /* bigger color boxes */
+.legend-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;   /* slightly bigger spacing for bigger font */
+}
+
+.legend-box {
+  display: inline-block;   /* ensure it renders as a block */
+  width: 30px;             /* double previous size */
   height: 30px;
   margin-right: 12px;
-  border: 1px solid #555;
+  border: 2px solid #555;  /* thicker border to match bigger size */
+  flex-shrink: 0;          /* don't shrink when container is narrow */
 }
 
 .leaflet-popup-content {
@@ -97,11 +105,12 @@ infoPanel.onAdd = function () {
       Questions? <a href="mailto:rwalsh@pointblue.org">rwalsh@pointblue.org</a><br>
 <a href="https://docs.google.com/forms/d/e/1FAIpQLSecMJ7c7OuvOcMON64cdeqYUCF2sOrMsDZZk0fI3Ep6X_swxg/viewform" 
    target="_blank" 
-   rel="noopener">
-   Return to Main Form
+   rel="noopener"> <br>
+   Return to main form <br>
+
 </a>
     </div>
-
+Legend
     <div class="info-legend">
       <div class="legend-row">
         <span class="legend-box" style="background:#D00000;"></span>
@@ -109,7 +118,7 @@ infoPanel.onAdd = function () {
       </div>
       <div class="legend-row">
         <span class="legend-box" style="background:#03045E;"></span>
-        Higher predicted abundance
+        Higher predicted abundance (priority)
       </div>
       <div class="legend-row">
         <span class="legend-box" style="background:#0077B6;"></span>
