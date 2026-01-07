@@ -12,6 +12,13 @@
   <style>
     body { margin: 0; }
     #map { height: 100vh; width: 100vw; }
+.legend i {
+  width: 14px;
+  height: 14px;
+  float: left;
+  margin-right: 6px;
+  opacity: 0.8;
+}
   </style>
 </head>
 
@@ -43,6 +50,45 @@
   // -------------------------------
 
   const map = L.map('map');
+
+const legend = L.control({ position: "bottomright" });
+
+legend.onAdd = function () {
+  const div = L.DomUtil.create("div", "info legend");
+  div.style.background = "white";
+  div.style.padding = "8px";
+  div.style.borderRadius = "6px";
+  div.style.boxShadow = "0 0 8px rgba(0,0,0,0.3)";
+  div.style.fontSize = "13px";
+  div.innerHTML = `
+    <b>Legend</b><br>
+    <i style="background:#D00000"></i> Claimed<br>
+    <i style="background:#03045E"></i> Higher predicted abundance<br>
+    <i style="background:#0077B6"></i> Intermediate predicted abundance<br>
+    <i style="background:#00B4D8"></i> Lower predicted abundance
+  `;
+  return div;
+};
+
+legend.addTo(map);
+
+const infoBox = L.control({ position: "topleft" });
+
+infoBox.onAdd = function () {
+  const div = L.DomUtil.create("div", "info-box");
+  div.style.background = "white";
+  div.style.padding = "10px";
+  div.style.borderRadius = "6px";
+  div.style.boxShadow = "0 0 8px rgba(0,0,0,0.3)";
+  div.style.maxWidth = "300px";
+  div.innerHTML = `
+    <b>Mountain Plover Survey Map</b><br><br>
+    Questions? Contact <a href="mailto:rwalsh@pointblue.org">rwalsh@pointblue.org</a>.
+  `;
+  return div;
+};
+
+infoBox.addTo(map);
 
   L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -110,12 +156,12 @@
   function generatePopupContent(p, btnId) {
     const claimed = p.Status === "claimed";
     return `
-      <b>Pixel:</b> ${p.PixelName}<br>
+      <b>Block:</b> ${p.PixelName}<br>
       <b>Cell ID:</b> ${p.cell_id}<br>
-      <b>Nearest city:</b> ${p.NearestCity}<br>
       <b>State:</b> ${p.State}<br>
-      <b>Distance:</b> ${p.DstMiles} miles<br>
-      <b>Relative abundance:</b> ${p.RelAbun}<br>
+      <b>Nearest city:</b> ${p.NearestCity}<br>
+      <b>Distance to city:</b> ${p.DstMiles} miles<br>
+      <b>Plover rel. abundance:</b> ${p.RelAbun}<br>
       <b>Status:</b> ${p.Status}<br>
       ${claimed ? `<b>Claimed by:</b> ${p.ClaimerName}<br>` : ""}
       <br>
@@ -136,8 +182,13 @@
     p.ClaimerName = name;
     p.ClaimerEmail = email;
 
-    // Fade polygon
-    layer.setStyle({ fillOpacity: 0.1, opacity: 0.3 });
+    // Red polygon for claimed
+    layer.setStyle({
+  fillColor: "#D00000",
+  color: "#7A0000",
+  fillOpacity: 0.2,
+  opacity: 1
+});
 
     // Update popup immediately
     layer.setPopupContent(generatePopupContent(p, `claimed-${cellId}`));
