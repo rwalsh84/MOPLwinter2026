@@ -12,13 +12,44 @@
   <style>
     body { margin: 0; }
     #map { height: 100vh; width: 100vw; }
-.legend i {
-  width: 14px;
-  height: 14px;
-  float: left;
-  margin-right: 6px;
-  opacity: 0.8;
+.info-panel {
+  background: white;
+  padding: 14px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.35);
+  max-width: 340px;
+  font-family: sans-serif;
+  line-height: 1.35;
 }
+
+.info-title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.info-text {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.info-legend {
+  font-size: 14px;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.legend-box {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  border: 1px solid #555;
+}
+
   </style>
 </head>
 
@@ -51,44 +82,50 @@
 
   const map = L.map('map');
 
-const legend = L.control({ position: "bottomright" });
+const infoPanel = L.control({ position: "topleft" });
 
-legend.onAdd = function () {
-  const div = L.DomUtil.create("div", "info legend");
-  div.style.background = "white";
-  div.style.padding = "8px";
-  div.style.borderRadius = "6px";
-  div.style.boxShadow = "0 0 8px rgba(0,0,0,0.3)";
-  div.style.fontSize = "13px";
+infoPanel.onAdd = function () {
+  const div = L.DomUtil.create("div", "info-panel");
+
   div.innerHTML = `
-    <b>Legend</b><br>
-    <i style="background:#D00000"></i> Claimed<br>
-    <i style="background:#03045E"></i> Higher predicted abundance<br>
-    <i style="background:#0077B6"></i> Intermediate predicted abundance<br>
-    <i style="background:#00B4D8"></i> Lower predicted abundance
+    <div class="info-title">Mountain Plover sign-up map</div>
+
+    <div class="info-text">
+      Claim survey blocks by clicking on them and filling out info.<br><br>
+      Questions? <a href="mailto:rwalsh@pointblue.org">rwalsh@pointblue.org</a><br>
+<a href="https://docs.google.com/forms/d/e/1FAIpQLSecMJ7c7OuvOcMON64cdeqYUCF2sOrMsDZZk0fI3Ep6X_swxg/viewform" 
+   target="_blank" 
+   rel="noopener">
+   Return to Main Form
+</a>
+    </div>
+
+    <div class="info-legend">
+      <div class="legend-row">
+        <span class="legend-box" style="background:#D00000;"></span>
+        Claimed
+      </div>
+      <div class="legend-row">
+        <span class="legend-box" style="background:#03045E;"></span>
+        Higher predicted abundance
+      </div>
+      <div class="legend-row">
+        <span class="legend-box" style="background:#0077B6;"></span>
+        Intermediate predicted abundance
+      </div>
+      <div class="legend-row">
+        <span class="legend-box" style="background:#D3E6FF;"></span>
+        Lower predicted abundance
+      </div>
+    </div>
   `;
+
   return div;
 };
 
-legend.addTo(map);
+infoPanel.addTo(map);
 
-const infoBox = L.control({ position: "topleft" });
 
-infoBox.onAdd = function () {
-  const div = L.DomUtil.create("div", "info-box");
-  div.style.background = "white";
-  div.style.padding = "10px";
-  div.style.borderRadius = "6px";
-  div.style.boxShadow = "0 0 8px rgba(0,0,0,0.3)";
-  div.style.maxWidth = "300px";
-  div.innerHTML = `
-    <b>Mountain Plover Survey Map</b><br><br>
-    Questions? Contact <a href="mailto:rwalsh@pointblue.org">rwalsh@pointblue.org</a>.
-  `;
-  return div;
-};
-
-infoBox.addTo(map);
 
   L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
