@@ -101,12 +101,12 @@ infoPanel.onAdd = function () {
   div.innerHTML = `
     <div class="info-title">Mountain Plover Survey Winter 2026</div>
     <div class="info-text">
-      Claim survey blocks by clicking on them and filling out info.<br><br>
+      Claim 3km x 3km survey blocks by clicking on them and filling out info. Zoom in to inspect. Most are in Central and Southern California. <br><br>
       Questions? <a href="mailto:rwalsh@pointblue.org">rwalsh@pointblue.org</a><br>
 <a href="https://docs.google.com/forms/d/e/1FAIpQLSecMJ7c7OuvOcMON64cdeqYUCF2sOrMsDZZk0fI3Ep6X_swxg/viewform" 
    target="_blank" 
    rel="noopener"> <br>
-   Return to main form <br>
+   Return to main data form & instructions <br>
 
 </a>
     </div>
@@ -138,10 +138,17 @@ infoPanel.addTo(map);
 
 
 
-  L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 18, attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics' }
-  ).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, USGS',
+    maxZoom: 19
+}).addTo(map);
+
+// Labels overlay
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 20
+}).addTo(map);
 
   let gridLayer;
 
