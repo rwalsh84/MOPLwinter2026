@@ -27,22 +27,34 @@
 <script>
 // ---------------- CONFIG ----------------
 const GRID_URL = "survey_grid_web.geojson";
+const CARTO_KEY = "YOUR_KEY";      // paste your CARTO key here
+const MAX_CLAIMS = 3;
+const COORDINATORS = [             // placeholders: edit freely
+  { state: "CA", name: "Joe", email: "joe@gmail.com" },
+  { state: "TX", name: "Joe", email: "joe@gmail.com" }
+];
 const sheetCSVUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAuCYuA2qVCdRemU8gz0XJZNqlvISHcUEARIVddpKJZHlFhnQ_8G6aBfiLNgWJlIOGq7C075smSDDz/pub?output=csv";
 const formUrl = "https://docs.google.com/forms/d/e/1FAIpQLSd6e2s8ZoljDQy_Bt31CcI0LjbXRu5j0MhgV1BuqR8CHTP9Vw/formResponse";
 const entryIDs = {
   cell_id: "entry.2123537933", PixelName: "entry.1700637740", Status: "entry.704542047",
   ClaimerName: "entry.617726333", ClaimerEmail: "entry.228419495"
 };
-const FILL = { 1: "#03045E", 2: "#0077B6", 3: "#D3E6FF" };   // by cls
+const FILL = { 1: "#03045E", 2: "#7FC8F8" };   // 1 = high priority, 2 = additional options
 const GOLD = "#FFB703", CLAIMED = "#D00000";
 
 // ---------------- MAP ----------------
 const map = L.map("map", { zoomControl: false, preferCanvas: true });
 L.control.zoom({ position: "bottomright" }).addTo(map);
+map.setView([33.5, -112], 5);   // default view; replaced by fitBounds once the grid loads
 
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
   attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, USGS", maxZoom: 19 }).addTo(map);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png", {
+
+// Labels overlay: keyed CARTO tiles if a key is set, otherwise the free labels layer
+const labelsUrl = CARTO_KEY === "YOUR_KEY"
+  ? "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
+  : `https://basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`;
+L.tileLayer(labelsUrl, {
   attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: "abcd", maxZoom: 20 }).addTo(map);
 
 // Collapsible info panel (starts closed on phones)
@@ -50,19 +62,22 @@ const info = L.control({ position: "topleft" });
 info.onAdd = function () {
   const div = L.DomUtil.create("details", "panel");
   div.open = window.innerWidth > 700;
+  const coords = COORDINATORS.map(c =>
+    `${c.state}: email ${c.name} at <a href="mailto:${c.email}">${c.email}</a>`).join("<br>");
   div.innerHTML = `
     <summary>Mountain Plover Survey Winter 2026</summary>
     <div class="body">
-      <p>Claim a 3 km x 3 km block by tapping it. Shown: the top 25 blocks in each state,
-      the top 1000 overall, and any block with a winter plover sighting since 2021.</p>
+      <p>Claim a 3 km x 3 km block by tapping it. Up to ${MAX_CLAIMS} people can claim a block.
+      Dark blue blocks are the highest priority (top predicted blocks in each state and blocks with a
+      recent winter sighting); light blue blocks are additional options, including blocks next to sightings.</p>
+      <p><b>State coordinators</b><br>${coords}</p>
       <p>Questions? <a href="mailto:rwalsh@pointblue.org">rwalsh@pointblue.org</a><br>
       <a href="https://docs.google.com/forms/d/e/1FAIpQLSecMJ7c7OuvOcMON64cdeqYUCF2sOrMsDZZk0fI3Ep6X_swxg/viewform"
          target="_blank" rel="noopener">Return to main data form &amp; instructions</a></p>
       <b>Legend</b>
-      <div class="row"><span class="box" style="background:${CLAIMED}"></span>Claimed</div>
-      <div class="row"><span class="box" style="background:${FILL[1]}"></span>Top 25 in state (priority)</div>
-      <div class="row"><span class="box" style="background:${FILL[2]}"></span>Top 1000 overall</div>
-      <div class="row"><span class="box" style="background:${FILL[3]}"></span>Sighting only</div>
+      <div class="row"><span class="box" style="background:${CLAIMED}"></span>At least 1 claim</div>
+      <div class="row"><span class="box" style="background:${FILL[1]}"></span>High priority</div>
+      <div class="row"><span class="box" style="background:${FILL[2]}"></span>Additional options</div>
       <div class="row"><span class="box" style="background:none;border-color:${GOLD};border-width:4px"></span>Winter sighting, 2021 or later</div>
     </div>`;
   L.DomEvent.disableClickPropagation(div);
@@ -76,7 +91,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 function styleFor(p) {
-  const claimed = p.Status === "claimed";
+  const claimed = p.nClaims >= 1;
   return {
     fillColor: claimed ? CLAIMED : FILL[p.cls],
     fillOpacity: claimed ? 0.5 : 0.6,
@@ -86,26 +101,30 @@ function styleFor(p) {
 }
 
 function popupHtml(p) {
-  const claimed = p.Status === "claimed";
-  const why = [p.top25 ? `Top 25 in ${esc(p.State)} (#${p.rank})` : "",
-               p.top1000 ? `Top 1000 overall (#${p.ovr})` : ""].filter(Boolean).join("; ");
+  const why = [p.top100 ? `Top ${p.rank <= 100 ? "100" : ""} in ${esc(p.State)} (#${p.rank})` : "",
+               p.Sighted ? "Winter sighting 2021+" : "",
+               p.nbr ? "Next to a recent sighting" : "",
+               p.nxt1000 ? "High predicted value" : ""].filter(Boolean).join("; ");
+  const full = p.nClaims >= MAX_CLAIMS;
+  const claimedMsg = p.nClaims >= 1
+    ? `<br><b>Claimed at least once; consider reaching out to state coordinator or choosing another block.</b><br>` : "<br>";
   return `
     <b>${esc(p.cell_id)}</b><br>
     ${esc(p.State)}, near ${esc(p.NearestCity)} (${p.DstMiles} mi)<br>
-    ${why ? `Priority: ${why}<br>` : ""}
-    Winter sighting 2021+: ${p.Sighted ? `yes (${p.NSight} records, last ${esc(p.LastSight)})` : "none recorded"}<br>
-    Status: ${claimed ? "claimed by " + esc(p.ClaimerName) : "available"}<br>
-    <button id="claim-${esc(p.cell_id)}" ${claimed ? "disabled" : ""}>Claim this block</button>`;
+    ${why ? esc(why).replace("Top  in", "Top in") + "<br>" : ""}
+    ${p.Sighted ? `Sightings: ${p.NSight} records, last ${esc(p.LastSight)}<br>` : ""}
+    Claims: ${p.nClaims} of ${MAX_CLAIMS}${claimedMsg}
+    <button id="claim-${esc(p.cell_id)}" ${full ? "disabled" : ""}>${full ? "Fully claimed" : "Claim this block"}</button>`;
 }
 
-const byId = new Map();   // cell_id -> layer (fast lookup for claims)
+const byId = new Map();   // cell_id -> layer (fast lookup)
 
 function claimSquare(layer, p) {
+  if (p.nClaims >= MAX_CLAIMS) return;
   const name = prompt("Your name:");   if (!name) return;
   const email = prompt("Your email:"); if (!email) return;
-  p.Status = "claimed"; p.ClaimerName = name; p.ClaimerEmail = email;
+  p.nClaims += 1;
   layer.setStyle(styleFor(p));
-  layer.setPopupContent(popupHtml(p));
   layer.closePopup();
 
   const data = new FormData();
@@ -119,7 +138,11 @@ function claimSquare(layer, p) {
 }
 
 // ---------------- LOAD GRID, THEN CLAIMS ----------------
-fetch(GRID_URL).then(r => r.json()).then(data => {
+fetch(GRID_URL).then(r => {
+  if (!r.ok) throw new Error(`Could not load ${GRID_URL} (HTTP ${r.status}). Check the file name and that it is in the same folder as index.html.`);
+  return r.json();
+}).then(data => {
+  data.features.forEach(f => { f.properties.nClaims = 0; });
   const gridLayer = L.geoJSON(data, {
     style: f => styleFor(f.properties),
     onEachFeature: (feature, layer) => {
@@ -128,22 +151,30 @@ fetch(GRID_URL).then(r => r.json()).then(data => {
       layer.bindPopup(() => popupHtml(p));
       layer.on("popupopen", () => {
         const btn = document.getElementById(`claim-${p.cell_id}`);
-        if (btn && p.Status !== "claimed") btn.onclick = () => claimSquare(layer, p);
+        if (btn && p.nClaims < MAX_CLAIMS) btn.onclick = () => claimSquare(layer, p);
       });
     }
   }).addTo(map);
   map.fitBounds(gridLayer.getBounds());
 
+  // Count claims per cell from the published sheet (one row = one claim)
   fetch(sheetCSVUrl + "&_=" + Date.now()).then(r => r.text()).then(csv => {
     Papa.parse(csv, { header: true, skipEmptyLines: true }).data.forEach(row => {
       const layer = byId.get(row.cell_id);
       if (layer && row.Status === "claimed") {
         const p = layer.feature.properties;
-        p.Status = "claimed"; p.ClaimerName = row.ClaimerName;
+        p.nClaims += 1;
         layer.setStyle(styleFor(p));
       }
     });
   });
+}).catch(err => {
+  console.error(err);
+  const d = document.createElement("div");
+  d.style.cssText = "position:fixed;bottom:60px;left:10px;right:10px;z-index:9999;background:#fff3cd;" +
+                    "border:2px solid #b58900;border-radius:8px;padding:12px;font:15px system-ui,sans-serif";
+  d.textContent = "Map data failed to load: " + err.message;
+  document.body.appendChild(d);
 });
 </script>
 </body>
